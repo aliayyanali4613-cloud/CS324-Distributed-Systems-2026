@@ -421,7 +421,7 @@ public class ClientGUI extends JFrame {
     // SWITCH INPUT PANEL
     // ==========================================
 
-    private void updateInputPanel() {
+   private void updateInputPanel() {
         JobType type = (JobType) jobTypeBox.getSelectedItem();
 
         if (type == JobType.PRIMESUM) {
@@ -431,6 +431,11 @@ public class ClientGUI extends JFrame {
             cardLayout.show(inputCards, "LIST");
             loadCSVButton.setText("Load CSV");
         }
+        
+        // Clear fields so old data doesn't stick around
+        if (numbersField != null) numbersField.setText("");
+        if (startField != null) startField.setText("");
+        if (endField != null) endField.setText("");
     }
 
     // ==========================================
