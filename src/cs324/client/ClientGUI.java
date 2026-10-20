@@ -190,13 +190,14 @@ public class ClientGUI extends JFrame {
                 new Dimension(Integer.MAX_VALUE, 42)
         );
 
-        loadCSVButton = createButton("Load CSV");
+      loadCSVButton = createButton("Load CSV");
+        loadCSVButton.setToolTipText("Load numbers or ranges from a local CSV file");
         submitButton = createButton("Submit Job");
+        submitButton.setToolTipText("Send job to distributed network (Shortcut: Ctrl+Enter)");
 
         buttons.add(loadCSVButton);
         buttons.add(submitButton);
         card.add(buttons);
-
         jobTypeBox.addActionListener(e -> updateInputPanel());
         loadCSVButton.addActionListener(e -> loadCSV());
         submitButton.addActionListener(e -> submitJob());
