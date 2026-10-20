@@ -301,6 +301,16 @@ public class ClientGUI extends JFrame {
         coordinatorLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         card.add(coordinatorLabel);
+        card.add(Box.createVerticalStrut(12));
+        JButton clearResultButton = createButton("Clear Result");
+        clearResultButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        clearResultButton.setMaximumSize(new Dimension(140, 32));
+        clearResultButton.addActionListener(e -> {
+            resultArea.setText("—");
+            jobTypeResultLabel.setText("NO JOB SUBMITTED");
+            coordinatorLabel.setText("Coordinator: —");
+        });
+        card.add(clearResultButton);
         return card;
     }
 
