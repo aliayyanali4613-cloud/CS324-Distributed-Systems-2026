@@ -168,9 +168,9 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
         coordinatorId = -1;
         // Release any still-open job streams so clients can reconnect to the next leader.
         // Completed jobs were already closed by notifyOne().
-        for (JobState state : jobs.values()) {
+       for (JobState state : jobs.values()) {
             if (!state.done()) {
-                for (StreamObserver<JobProgress> listener : state.listeners) {
+                state.listeners.removeIf(listener -> {
                     synchronized (listener) {
                         try {
                             listener.onError(Status.UNAVAILABLE
@@ -178,8 +178,8 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
                                     .asRuntimeException());
                         } catch (Exception ignored) { }
                     }
-                    state.listeners.remove(listener);
-                }
+                    return true;
+                });
             }
         }
         try {
