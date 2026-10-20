@@ -412,8 +412,8 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
                 .setJobType(state.plan.getJob().getJobType())
                 .setCompleted(state.completed.size())
                 .setTotal(state.plan.getTasksCount())
-                .setPercent(state.plan.getTasksCount() == 0 ? 0
-                        : (int) (100L * state.completed.size() / state.plan.getTasksCount()))
+              .setPercent(state.plan.getTasksCount() <= 0 ? 0
+                        : (int) Math.min(100, (100L * state.completed.size()) / state.plan.getTasksCount()))
                 .setCoordinatorId(workerId);
         Map<Integer, int[]> stats = new TreeMap<>();
         for (Integer id : state.assignments.values()) stats.computeIfAbsent(id, x -> new int[2])[1]++;
