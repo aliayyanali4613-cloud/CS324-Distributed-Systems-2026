@@ -171,7 +171,13 @@ public class BootstrapGrpcServer {
         monitor.scheduleAtFixedRate(handler::checkWorkers, 2, 2, TimeUnit.SECONDS);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             monitor.shutdownNow();
-            server.shutdown();
+            try {
+                server.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+                System.out.println("Bootstrap server shut down gracefully.");
+            } catch (InterruptedException e) {
+                server.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }));
         System.out.println("DistriLab gRPC Bootstrap running on port " + PORT);
         System.out.println("Waiting for " + count + " registered and ready workers...");
