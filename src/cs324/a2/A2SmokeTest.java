@@ -8,6 +8,7 @@ import cs324.grpc.JobProgress;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,35 +25,58 @@ public class A2SmokeTest {
 
     private static void check(JobRequest job, BigInteger expected) throws Exception {
         AtomicReference<BigInteger> answer = new AtomicReference<>();
+        AtomicReference<Throwable> streamError = new AtomicReference<>();
         AtomicInteger maxProgress = new AtomicInteger(0);
         AtomicInteger updates = new AtomicInteger();
+        CountDownLatch latch = new CountDownLatch(1);
         long startTime = System.currentTimeMillis();
 
         System.out.println("[TEST] Submitting job: " + job.getJobType() + " ...");
 
-        GrpcClientConnection.stream(job, update -> {
-            updates.incrementAndGet();
-            int pct = update.getPercent();
-            
-            if (pct < 0 || pct > 100 || update.getCompleted() > update.getTotal()) {
-                throw new AssertionError("Invalid progress received for " + job.getJobType() 
-                        + " [percent=" + pct + ", completed=" + update.getCompleted() 
-                        + ", total=" + update.getTotal() + "]");
-            }
-            
-            maxProgress.accumulateAndGet(pct, Math::max);
-            System.out.println("  -> " + job.getJobType() + " Progress: " + pct + "% ("
-                    + update.getCompleted() + "/" + update.getTotal() + ")");
+        try {
+            GrpcClientConnection.stream(job, update -> {
+                try {
+                    updates.incrementAndGet();
+                    int pct = update.getPercent();
                     
-            if (update.getFinished()) {
-                if (pct != 100) {
-                    throw new AssertionError("Job marked finished before reaching 100% progress.");
+                    if (pct < 0 || pct > 100 || update.getCompleted() > update.getTotal()) {
+                        throw new AssertionError("Invalid progress received for " + job.getJobType() 
+                                + " [percent=" + pct + ", completed=" + update.getCompleted() 
+                                + ", total=" + update.getTotal() + "]");
+                    }
+                    
+                    maxProgress.accumulateAndGet(pct, Math::max);
+                    System.out.println("  -> " + job.getJobType() + " Progress: " + pct + "% ("
+                            + update.getCompleted() + "/" + update.getTotal() + ")");
+                            
+                    if (update.getFinished()) {
+                        if (pct != 100) {
+                            throw new AssertionError("Job marked finished before reaching 100% progress.");
+                        }
+                        answer.set(new BigInteger(update.getResult()));
+                        latch.countDown();
+                    }
+                } catch (Throwable t) {
+                    streamError.set(t);
+                    latch.countDown();
                 }
-                answer.set(new BigInteger(update.getResult()));
-            }
-        });
+            });
+        } catch (Exception e) {
+            throw new AssertionError("Failed to initiate stream for " + job.getJobType() + ": " + e.getMessage(), e);
+        }
 
-        // Verify result validity
+        if (!latch.await(STREAM_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw new AssertionError(job.getJobType() + " timed out after " + STREAM_TIMEOUT_SECONDS + " seconds.");
+        }
+
+        if (streamError.get() != null) {
+            Throwable err = streamError.get();
+            if (err instanceof Exception) {
+                throw (Exception) err;
+            }
+            throw new RuntimeException(err);
+        }
+
         if (answer.get() == null) {
             throw new AssertionError(job.getJobType() + " failed to return a result payload.");
         }
@@ -90,7 +114,7 @@ public class A2SmokeTest {
             System.exit(0);
 
         } catch (Exception e) {
-            System.err.println("❌ A2 SMOKE TEST FAILED: " + e.getMessage());
+            System.err.println("A2 SMOKE TEST FAILED: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
