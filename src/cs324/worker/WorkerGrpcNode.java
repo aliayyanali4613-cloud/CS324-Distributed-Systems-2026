@@ -288,11 +288,14 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
         if (!state.done()) scheduleJob(state);
     }
 
-    private JobPlan makePlan(JobSpec spec) {
+   private JobPlan makePlan(JobSpec spec) {
         List<WorkerDetails> members = activeWorkers();
-        if (members.isEmpty()) throw new IllegalStateException("No workers online");
+        if (members == null || members.isEmpty()) {
+            throw new IllegalStateException("No active workers online to create a job plan.");
+        }
+        int multiplier = Math.max(1, members.size() * 8);
         JobRequest request = parse(spec);
-        List<JobRequest> pieces = JobDistributor.splitJob(request, members.size() * 8);
+        List<JobRequest> pieces = JobDistributor.splitJob(request, multiplier);
         JobPlan.Builder plan = JobPlan.newBuilder().setJob(spec);
         int index = 0;
         for (JobRequest piece : pieces) {
