@@ -425,12 +425,17 @@ private void replicateResult(TaskOutcome result) {
             p.addWorkers(WorkerStats.newBuilder().setWorkerId(entry.getKey())
                     .setCompletedTasks(entry.getValue()[0]).setAssignedTasks(entry.getValue()[1]).build());
         }
-        if (state.done()) {
+       if (state.done()) {
             List<BigInteger> results = new ArrayList<>();
             for (int i = 0; i < state.plan.getTasksCount(); i++) {
                 TaskOutcome outcome = state.completed.get(i);
                 if (outcome == null) return p.build();
-                results.add(new BigInteger(outcome.getResult()));
+                try {
+                    results.add(new BigInteger(outcome.getResult()));
+                } catch (NumberFormatException e) {
+                    System.err.println("Warning: Invalid result format for task " + i);
+                    results.add(BigInteger.ZERO);
+                }
             }
             p.setFinished(true).setResult(JobDistributor.combineResults(
                     JobType.valueOf(state.plan.getJob().getJobType()), results).toString());
