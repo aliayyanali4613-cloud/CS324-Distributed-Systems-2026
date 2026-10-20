@@ -1,10 +1,12 @@
 package cs324.common;
 
-import java.io.Serializable;
+import cs324.worker.ElectionCandidateProto;
 
-public class ElectionCandidate implements Serializable {
-
-    private static final long serialVersionUID = 1L;
+/**
+ * Domain model representing a candidate worker during leader election.
+ * Implements Comparable for deterministic sorting based on Job Absorption Capacity (JAC) and worker ID.
+ */
+public final class ElectionCandidate implements Comparable<ElectionCandidate> {
 
     private final int workerId;
     private final int jac;
@@ -20,6 +22,31 @@ public class ElectionCandidate implements Serializable {
 
     public int getJac() {
         return jac;
+    }
+
+    /**
+     * Converts domain model to gRPC Protobuf message.
+     */
+    public ElectionCandidateProto toProto() {
+        return ElectionCandidateProto.newBuilder()
+                .setWorkerId(this.workerId)
+                .setJac(this.jac)
+                .build();
+    }
+
+    /**
+     * Constructs domain model from gRPC Protobuf message.
+     */
+    public static ElectionCandidate fromProto(ElectionCandidateProto proto) {
+        return new ElectionCandidate(proto.getWorkerId(), proto.getJac());
+    }
+
+    @Override
+    public int compareTo(ElectionCandidate other) {
+        if (this.jac != other.jac) {
+            return Integer.compare(other.jac, this.jac);
+        }
+        return Integer.compare(this.workerId, other.workerId);
     }
 
     @Override
