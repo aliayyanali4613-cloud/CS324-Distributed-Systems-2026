@@ -279,7 +279,7 @@ public class ClientGUI extends JFrame {
         card.add(Box.createVerticalStrut(12));
 
         // Long results stay visible and can be copied.
-        resultArea = new JTextArea("—");
+       resultArea = new JTextArea("—");
         resultArea.setEditable(false);
         resultArea.setLineWrap(true);
         resultArea.setWrapStyleWord(false);
@@ -289,6 +289,20 @@ public class ClientGUI extends JFrame {
         resultArea.setForeground(NAVY);
         resultArea.setBackground(new Color(247, 249, 252));
         resultArea.setBorder(new EmptyBorder(12, 12, 12, 12));
+        
+        // Add click-to-copy feature
+        resultArea.setToolTipText("Click to copy calculation result to clipboard");
+        resultArea.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                String text = resultArea.getText();
+                if (text != null && !text.equals("—") && !text.equals("ERROR")) {
+                    java.awt.datatransfer.StringSelection selection = new java.awt.datatransfer.StringSelection(text);
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+                    updateStatus("RESULT COPIED", new Color(116, 221, 176));
+                }
+            }
+        });
 
         JScrollPane resultScroll = new JScrollPane(resultArea);
         resultScroll.setBorder(
