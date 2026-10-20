@@ -382,13 +382,14 @@ public class ClientGUI extends JFrame {
         activityTop.add(progressScroll, BorderLayout.CENTER);
         card.add(activityTop, BorderLayout.NORTH);
 
-        activityArea = new JTextArea();
+      activityArea = new JTextArea();
         activityArea.setEditable(false);
         activityArea.setFont(
                 new Font("Consolas", Font.PLAIN, 13)
         );
         activityArea.setForeground(TEXT);
         activityArea.setBackground(new Color(247, 249, 252));
+        activityArea.setMargin(new Insets(4, 6, 4, 6)); // Added margin padding
         activityArea.setBorder(
                 new EmptyBorder(12, 12, 12, 12)
         );
