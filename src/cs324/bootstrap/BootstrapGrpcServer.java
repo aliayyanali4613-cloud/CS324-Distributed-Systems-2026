@@ -37,7 +37,7 @@ public class BootstrapGrpcServer {
             }
         }
 
-        synchronized void checkWorkers() { removeExpired(); }
+        public synchronized void checkWorkers() { removeExpired(); }
 
         @Override
         public synchronized void registerWorker(RegisterRequest request,
