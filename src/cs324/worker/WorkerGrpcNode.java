@@ -343,7 +343,7 @@ private void replicateResult(TaskOutcome result) {
             }
         } catch (Exception ignored) { }
     }
-    
+
     private void scheduleJob(JobState state) {
         String id = state.plan.getJob().getJobId();
         if (!runningJobs.add(id)) return;
@@ -502,9 +502,14 @@ private void replicateResult(TaskOutcome result) {
         int id, port;
         try { id = Integer.parseInt(args[0]); port = Integer.parseInt(args[1]); }
         catch (NumberFormatException e) { System.err.println("Worker ID and port must be integers."); return; }
-        if (id < 1 || id > 10 || port < 1024 || port > 65535) {
-            System.err.println("Worker ID must be 1-10 and port must be 1024-65535.");
+       if (id < 1 || id > 50) {
+            System.err.println("Error: Worker ID must be between 1 and 50.");
             return;
+        }
+        if (port < 1024 || port > 65535) {
+            System.err.println("Error: Port must be within the valid range 1024-65535.");
+            return;
+        }
         }
         WorkerGrpcNode worker = new WorkerGrpcNode(id, port);
         Server server = ServerBuilder.forPort(port).addService(worker).build().start();
