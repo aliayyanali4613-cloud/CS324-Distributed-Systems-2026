@@ -32,7 +32,7 @@ public class BootstrapGrpcServer {
                     workers.remove(id);
                     lastSeen.remove(id);
                     readyWorkers.remove(id);
-                    System.out.println("Worker " + id + " timed out; its slot is now free.");
+                    System.out.println("WARNING: Worker " + id + " missed heartbeat timeout (" + (WORKER_TIMEOUT_MS / 1000) + "s). Slot freed. Active count: " + workers.size() + "/" + requiredWorkers);
                 }
             }
         }
