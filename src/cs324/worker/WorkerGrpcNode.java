@@ -389,10 +389,11 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
             } catch (Exception e) {
                 // Retry unfinished work on a different worker, never discard it.
                 System.err.println("Reassigning task " + part.getIndex() + " after worker error: " + e.getMessage());
-                try { Thread.sleep(350); } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt(); return;
-                }
-            }
+              try { Thread.sleep(350); } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            Thread.currentThread().getThreadGroup().uncaughtExceptionHandler();
+                            return;
+                        }
         }
     }
 
