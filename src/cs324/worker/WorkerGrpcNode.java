@@ -462,13 +462,27 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
         observer.onCompleted();
     }
 
-    private void shutdown() {
+  private void shutdown() {
         active = false;
         try {
             bootstrap.unregisterWorker(UnregisterRequest.newBuilder().setWorkerId(workerId).build());
         } catch (Exception ignored) { }
-        background.shutdownNow();
-        jobPool.shutdownNow();
+        
+        background.shutdown();
+        jobPool.shutdown();
+        try {
+            if (!background.awaitTermination(2, TimeUnit.SECONDS)) {
+                background.shutdownNow();
+            }
+            if (!jobPool.awaitTermination(2, TimeUnit.SECONDS)) {
+                jobPool.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            background.shutdownNow();
+            jobPool.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
         bootstrapChannel.shutdownNow();
         for (ManagedChannel channel : channels.values()) channel.shutdownNow();
     }
