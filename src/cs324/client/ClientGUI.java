@@ -154,6 +154,7 @@ public class ClientGUI extends JFrame {
         jobTypeBox.setMaximumSize(
                 new Dimension(Integer.MAX_VALUE, 38)
         );
+        jobTypeBox.setToolTipText("Select the distributed calculation task type");
 
         card.add(jobTypeBox);
         card.add(Box.createVerticalStrut(16));
