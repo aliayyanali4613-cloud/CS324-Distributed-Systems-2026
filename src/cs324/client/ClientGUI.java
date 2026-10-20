@@ -84,6 +84,16 @@ public class ClientGUI extends JFrame {
         root.add(createStatusBar(), BorderLayout.SOUTH);
         updateInputPanel();
 
+        // Add shortcut Ctrl+Enter to submit jobs quickly
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                .put(KeyStroke.getKeyStroke("control ENTER"), "submitJobShortcut");
+        getRootPane().getActionMap().put("submitJobShortcut", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                submitButton.doClick();
+            }
+        });
+
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
