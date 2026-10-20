@@ -587,11 +587,15 @@ public class ClientGUI extends JFrame {
     }
 
     private BigInteger parseInteger(String text) {
+        String cleanText = text.trim();
+        if (cleanText.isEmpty()) {
+            throw new IllegalArgumentException("Input number cannot be empty.");
+        }
         try {
-            return new BigInteger(text);
+            return new BigInteger(cleanText);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
-                    "Invalid integer: " + text
+                    "Invalid integer format: \"" + cleanText + "\". Please use valid numbers only."
             );
         }
     }
