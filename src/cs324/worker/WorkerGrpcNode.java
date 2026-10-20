@@ -332,16 +332,18 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
         } catch (Exception e) { System.err.println("Job replication delayed: " + e.getMessage()); }
     }
 
-    private void replicateResult(TaskOutcome result) {
+private void replicateResult(TaskOutcome result) {
         try {
-            for (WorkerDetails w : activeWorkers()) {
+            List<WorkerDetails> workers = activeWorkers();
+            if (workers == null) return;
+            for (WorkerDetails w : workers) {
                 if (w.getWorkerId() == workerId) continue;
                 try { peer(w).withDeadlineAfter(3, TimeUnit.SECONDS).shareResult(result); }
                 catch (Exception ignored) { }
             }
         } catch (Exception ignored) { }
     }
-
+    
     private void scheduleJob(JobState state) {
         String id = state.plan.getJob().getJobId();
         if (!runningJobs.add(id)) return;
