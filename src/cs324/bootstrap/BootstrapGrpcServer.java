@@ -11,7 +11,7 @@ import java.util.concurrent.*;
 
 /**
  * gRPC Bootstrap Server managing worker node registration, heartbeat tracking,
- * cluster readiness states, and dynamic failure detection.
+ * cluster readiness states, and dynamic failure detection with fine-grained concurrency.
  */
 public class BootstrapGrpcServer {
     private static final int PORT = System.getenv("PORT") != null ? Integer.parseInt(System.getenv("PORT")) : 50051;
@@ -19,17 +19,17 @@ public class BootstrapGrpcServer {
     ? Long.parseLong(System.getenv("WORKER_TIMEOUT_MS")) : 6000L;
 
     private static class BootstrapHandler extends BootstrapServiceGrpc.BootstrapServiceImplBase {
-        private final Map<Integer, WorkerDetails> workers = new HashMap<>();
-        private final Map<Integer, Long> lastSeen = new HashMap<>();
-        private final Set<Integer> readyWorkers = new HashSet<>();
+        private final Map<Integer, WorkerDetails> workers = new ConcurrentHashMap<>();
+        private final Map<Integer, Long> lastSeen = new ConcurrentHashMap<>();
+        private final Set<Integer> readyWorkers = ConcurrentHashMap.newKeySet();
         private final int requiredWorkers;
-        private boolean clusterStarted;
+        private volatile boolean clusterStarted;
 
         BootstrapHandler(int requiredWorkers) {
             this.requiredWorkers = requiredWorkers;
         }
 
-        private void removeExpired() {
+        private synchronized void removeExpired() {
             long now = System.currentTimeMillis();
             for (Integer id : new ArrayList<>(lastSeen.keySet())) {
                 if (now - lastSeen.get(id) > WORKER_TIMEOUT_MS) {
@@ -41,12 +41,12 @@ public class BootstrapGrpcServer {
             }
         }
 
-        public synchronized void checkWorkers() { 
+        public void checkWorkers() { 
             removeExpired(); 
         }
 
         @Override
-        public synchronized void registerWorker(RegisterRequest request,
+        public void registerWorker(RegisterRequest request,
                 StreamObserver<RegisterResponse> observer) {
             removeExpired();
             if (!request.hasWorker()) {
@@ -61,55 +61,62 @@ public class BootstrapGrpcServer {
                         "Allowed IDs: 1 to " + requiredWorkers + "; use a valid host and port").asRuntimeException());
                 return;
             }
-            if (workers.containsKey(id)) {
-                observer.onError(Status.ALREADY_EXISTS.withDescription("Worker " + id + " already registered").asRuntimeException());
-                return;
-            }
-            for (WorkerDetails old : workers.values()) {
-                if (old.getPort() == worker.getPort()
-                        && old.getHost().equalsIgnoreCase(worker.getHost())) {
-                    observer.onError(Status.ALREADY_EXISTS.withDescription("Port already in use").asRuntimeException());
+
+            synchronized (this) {
+                if (workers.containsKey(id)) {
+                    observer.onError(Status.ALREADY_EXISTS.withDescription("Worker " + id + " already registered").asRuntimeException());
                     return;
                 }
+                for (WorkerDetails old : workers.values()) {
+                    if (old.getPort() == worker.getPort()
+                            && old.getHost().equalsIgnoreCase(worker.getHost())) {
+                        observer.onError(Status.ALREADY_EXISTS.withDescription("Port already in use").asRuntimeException());
+                        return;
+                    }
+                }
+
+                RegisterResponse.Builder reply = RegisterResponse.newBuilder();
+                List<WorkerDetails> candidates = new ArrayList<>(workers.values());
+                if (!candidates.isEmpty()) {
+                    WorkerDetails neighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+                    reply.setNeighbour(neighbor);
+                    System.out.println("Assigned worker " + neighbor.getWorkerId() + " as neighbor to worker " + id);
+                }
+                workers.put(id, worker);
+                lastSeen.put(id, System.currentTimeMillis());
+                System.out.println("Worker " + id + " registered (" + workers.size() + "/" + requiredWorkers + ")");
+                observer.onNext(reply.build());
+                observer.onCompleted();
             }
-            RegisterResponse.Builder reply = RegisterResponse.newBuilder();
-            List<WorkerDetails> candidates = new ArrayList<>(workers.values());
-            if (!candidates.isEmpty()) {
-                WorkerDetails neighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-                reply.setNeighbour(neighbor);
-                System.out.println("Assigned worker " + neighbor.getWorkerId() + " as neighbor to worker " + id);
-            }
-            workers.put(id, worker);
-            lastSeen.put(id, System.currentTimeMillis());
-            System.out.println("Worker " + id + " registered (" + workers.size() + "/" + requiredWorkers + ")");
-            observer.onNext(reply.build());
-            observer.onCompleted();
         }
 
         @Override
-        public synchronized void unregisterWorker(UnregisterRequest request, StreamObserver<Empty> observer) {
+        public void unregisterWorker(UnregisterRequest request, StreamObserver<Empty> observer) {
             int id = request.getWorkerId();
-            workers.remove(id);
-            lastSeen.remove(id);
-            readyWorkers.remove(id);
-            System.out.println("Worker " + id + " explicitly unregistered.");
+            synchronized (this) {
+                workers.remove(id);
+                lastSeen.remove(id);
+                readyWorkers.remove(id);
+                System.out.println("Worker " + id + " explicitly unregistered.");
+            }
             observer.onNext(Empty.getDefaultInstance());
             observer.onCompleted();
         }
 
         @Override
-        public synchronized void heartbeat(HeartbeatRequest request, StreamObserver<Empty> observer) {
-            if (!workers.containsKey(request.getWorkerId())) {
+        public void heartbeat(HeartbeatRequest request, StreamObserver<Empty> observer) {
+            int id = request.getWorkerId();
+            if (!workers.containsKey(id)) {
                 observer.onError(Status.NOT_FOUND.withDescription("Worker must register first").asRuntimeException());
                 return;
             }
-            lastSeen.put(request.getWorkerId(), System.currentTimeMillis());
+            lastSeen.put(id, System.currentTimeMillis());
             observer.onNext(Empty.getDefaultInstance());
             observer.onCompleted();
         }
 
         @Override
-        public synchronized void getActiveWorkers(Empty request, StreamObserver<WorkerList> observer) {
+        public void getActiveWorkers(Empty request, StreamObserver<WorkerList> observer) {
             removeExpired();
             List<WorkerDetails> list = new ArrayList<>(workers.values());
             list.sort(Comparator.comparingInt(WorkerDetails::getWorkerId));
@@ -118,7 +125,7 @@ public class BootstrapGrpcServer {
         }
 
         @Override
-        public synchronized void getRandomActiveWorker(RandomWorkerRequest request,
+        public void getRandomActiveWorker(RandomWorkerRequest request,
                 StreamObserver<RandomWorkerResponse> observer) {
             removeExpired();
             List<WorkerDetails> list = new ArrayList<>(workers.values());
@@ -130,25 +137,27 @@ public class BootstrapGrpcServer {
         }
 
         @Override
-        public synchronized void workerReady(ReadyRequest request, StreamObserver<ReadyResponse> observer) {
+        public void workerReady(ReadyRequest request, StreamObserver<ReadyResponse> observer) {
             int id = request.getWorkerId();
             if (!workers.containsKey(id)) {
                 observer.onError(Status.NOT_FOUND.withDescription("Worker isn't registered").asRuntimeException());
                 return;
             }
-            if (readyWorkers.add(id)) {
-                System.out.println("Worker " + id + " ready (" + readyWorkers.size() + "/" + requiredWorkers + ")");
-            }
-            if (!clusterStarted && readyWorkers.size() == requiredWorkers) {
-                clusterStarted = true;
-                System.out.println("All workers ready. Worker nodes may now elect a coordinator.");
+            synchronized (this) {
+                if (readyWorkers.add(id)) {
+                    System.out.println("Worker " + id + " ready (" + readyWorkers.size() + "/" + requiredWorkers + ")");
+                }
+                if (!clusterStarted && readyWorkers.size() == requiredWorkers) {
+                    clusterStarted = true;
+                    System.out.println("All workers ready. Worker nodes may now elect a coordinator.");
+                }
             }
             observer.onNext(ReadyResponse.newBuilder().setSuccess(true).build());
             observer.onCompleted();
         }
 
         @Override
-        public synchronized void isElectionReady(Empty request, StreamObserver<ElectionStatus> observer) {
+        public void isElectionReady(Empty request, StreamObserver<ElectionStatus> observer) {
             observer.onNext(ElectionStatus.newBuilder().setReady(clusterStarted).build());
             observer.onCompleted();
         }
@@ -181,16 +190,30 @@ public class BootstrapGrpcServer {
         Server server = ServerBuilder.forPort(PORT).addService(handler).build().start();
         ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
         monitor.scheduleAtFixedRate(handler::checkWorkers, 2, 2, TimeUnit.SECONDS);
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            monitor.shutdownNow();
+            monitor.shutdown();
             try {
-                server.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+                if (!monitor.awaitTermination(3, TimeUnit.SECONDS)) {
+                    monitor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                monitor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+
+            try {
+                server.shutdown();
+                if (!server.awaitTermination(5, TimeUnit.SECONDS)) {
+                    server.shutdownNow();
+                }
                 System.out.println("Bootstrap server shut down gracefully.");
             } catch (InterruptedException e) {
                 server.shutdownNow();
                 Thread.currentThread().interrupt();
             }
         }));
+
         System.out.println("DistriLab gRPC Bootstrap running on port " + PORT);
         System.out.println("Waiting for " + count + " registered and ready workers...");
         server.awaitTermination();
