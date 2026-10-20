@@ -322,9 +322,11 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
         return new JobRequest(type, numbers);
     }
 
-    private void replicatePlan(JobPlan plan) {
+   private void replicatePlan(JobPlan plan) {
         try {
-            for (WorkerDetails w : activeWorkers()) {
+            List<WorkerDetails> workers = activeWorkers();
+            if (workers == null) return;
+            for (WorkerDetails w : workers) {
                 if (w.getWorkerId() == workerId) continue;
                 try { peer(w).withDeadlineAfter(5, TimeUnit.SECONDS).sharePlan(plan); }
                 catch (Exception e) { System.err.println("Cannot replicate job to Worker " + w.getWorkerId()); }
