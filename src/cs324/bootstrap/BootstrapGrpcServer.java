@@ -10,7 +10,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class BootstrapGrpcServer {
-    private static final int PORT = 50051;
+    private static final int PORT = System.getenv("PORT") != null ? Integer.parseInt(System.getenv("PORT")) : 50051;
     private static final long WORKER_TIMEOUT_MS = 6000;
 
     private static class BootstrapHandler extends BootstrapServiceGrpc.BootstrapServiceImplBase {
