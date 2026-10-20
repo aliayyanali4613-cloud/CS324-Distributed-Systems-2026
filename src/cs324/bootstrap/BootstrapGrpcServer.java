@@ -67,9 +67,11 @@ public class BootstrapGrpcServer {
             }
             RegisterResponse.Builder reply = RegisterResponse.newBuilder();
             List<WorkerDetails> candidates = new ArrayList<>(workers.values());
-            if (!candidates.isEmpty()) {
-                reply.setNeighbour(candidates.get(ThreadLocalRandom.current().nextInt(candidates.size())));
-            }
+                if (!candidates.isEmpty()) {
+                    WorkerDetails neighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+                    reply.setNeighbour(neighbor);
+                    System.out.println("Assigned worker " + neighbor.getWorkerId() + " as neighbor to worker " + id);
+                }
             workers.put(id, worker);
             lastSeen.put(id, System.currentTimeMillis());
             System.out.println("Worker " + id + " registered (" + workers.size() + "/" + requiredWorkers + ")");
