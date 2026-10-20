@@ -83,6 +83,7 @@ public class BootstrapGrpcServer {
             workers.remove(id);
             lastSeen.remove(id);
             readyWorkers.remove(id);
+            System.out.println("Worker " + id + " explicitly unregistered.");
             observer.onNext(Empty.getDefaultInstance());
             observer.onCompleted();
         }
