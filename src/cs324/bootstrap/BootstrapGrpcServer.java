@@ -11,7 +11,8 @@ import java.util.concurrent.*;
 
 public class BootstrapGrpcServer {
     private static final int PORT = System.getenv("PORT") != null ? Integer.parseInt(System.getenv("PORT")) : 50051;
-    private static final long WORKER_TIMEOUT_MS = 6000;
+    private static final long WORKER_TIMEOUT_MS = System.getenv("WORKER_TIMEOUT_MS") != null 
+    ? Long.parseLong(System.getenv("WORKER_TIMEOUT_MS")) : 6000L;
 
     private static class BootstrapHandler extends BootstrapServiceGrpc.BootstrapServiceImplBase {
         private final Map<Integer, WorkerDetails> workers = new HashMap<>();
