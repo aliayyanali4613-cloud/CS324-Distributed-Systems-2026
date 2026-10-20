@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-/** Finds the current elected coordinator and resumes the same job after a disconnect. */
+/**
+ * Manages gRPC client connection, coordinator discovery, 
+ * server-side progress streaming, and automated failover recovery.
+ */
 public class GrpcClientConnection {
     private GrpcClientConnection() { }
 
@@ -32,14 +35,20 @@ public class GrpcClientConnection {
                 .usePlaintext().build();
         BootstrapServiceGrpc.BootstrapServiceBlockingStub registry =
                 BootstrapServiceGrpc.newBlockingStub(bootstrapChannel);
-        JobSpec request = convert(job); // Reused on every retry: same immutable job ID.
+        JobSpec request = convert(job);
+
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 ManagedChannel workerChannel = null;
                 try {
+                    // Fetch active workers from Bootstrap server
                     List<WorkerDetails> workers = registry.withDeadlineAfter(3, TimeUnit.SECONDS)
                             .getActiveWorkers(Empty.getDefaultInstance()).getWorkersList();
-                    if (workers.isEmpty()) throw new IllegalStateException("No workers online");
+                    
+                    if (workers == null || workers.isEmpty()) {
+                        throw new IllegalStateException("No workers online in registry");
+                    }
+
                     int coordinatorId = -1;
                     for (WorkerDetails w : workers) {
                         ManagedChannel temp = ManagedChannelBuilder
@@ -49,33 +58,55 @@ public class GrpcClientConnection {
                                     .withDeadlineAfter(2, TimeUnit.SECONDS)
                                     .currentLeader(Empty.getDefaultInstance()).getWorkerId();
                             if (coordinatorId > 0) break;
-                        } catch (Exception ignored) { }
-                        finally { temp.shutdownNow(); }
+                        } catch (Exception ignored) { 
+                            // Try next node if current node is unreachable
+                        } finally { 
+                            temp.shutdownNow(); 
+                        }
                     }
+
                     WorkerDetails coordinator = null;
                     for (WorkerDetails w : workers) {
-                        if (w.getWorkerId() == coordinatorId) coordinator = w;
+                        if (w.getWorkerId() == coordinatorId) {
+                            coordinator = w;
+                            break;
+                        }
                     }
-                    if (coordinator == null) throw new IllegalStateException("Waiting for coordinator election");
+
+                    if (coordinator == null) {
+                        System.out.println("[Client] Waiting for coordinator election to complete...");
+                        Thread.sleep(1500);
+                        continue;
+                    }
+
+                    // Connect to the active coordinator and open streaming channel
                     workerChannel = ManagedChannelBuilder.forAddress(
                             coordinator.getHost(), coordinator.getPort()).usePlaintext().build();
+                    
                     Iterator<JobProgress> updates = WorkerClusterGrpc.newBlockingStub(workerChannel)
                             .submitJob(request);
+
                     while (updates.hasNext()) {
                         JobProgress update = updates.next();
                         progress.accept(update);
                         if (update.getFinished()) return;
                     }
-                    throw new IllegalStateException("Progress stream closed before completion");
+
+                    throw new IllegalStateException("Progress stream closed prematurely before completion.");
+
                 } catch (Exception e) {
-                    // If the coordinator failed, the new one recovers replicated task state.
-                    if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
-                    Thread.sleep(1200);
+                    if (Thread.currentThread().isInterrupted()) {
+                        throw new InterruptedException("Client thread interrupted during recovery.");
+                    }
+                    System.out.println("[Client] Connection error or coordinator failover detected. Retrying in 1.5s... (" + e.getMessage() + ")");
+                    Thread.sleep(1500);
                 } finally {
-                    if (workerChannel != null) workerChannel.shutdownNow();
+                    if (workerChannel != null) {
+                        workerChannel.shutdownNow();
+                    }
                 }
             }
-            throw new InterruptedException("Client job interrupted");
+            throw new InterruptedException("Client job stream terminated.");
         } finally {
             bootstrapChannel.shutdownNow();
         }
