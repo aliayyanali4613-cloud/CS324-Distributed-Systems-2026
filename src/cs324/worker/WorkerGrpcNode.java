@@ -433,13 +433,15 @@ public class WorkerGrpcNode extends WorkerClusterGrpc.WorkerClusterImplBase {
         return p.build();
     }
 
-    private void notifyOne(JobState state, StreamObserver<JobProgress> observer) {
+  private void notifyOne(JobState state, StreamObserver<JobProgress> observer) {
         synchronized (observer) {
             try {
-                if (observer instanceof ServerCallStreamObserver
-                        && ((ServerCallStreamObserver<?>) observer).isCancelled()) {
-                    state.listeners.remove(observer);
-                    return;
+                if (observer instanceof ServerCallStreamObserver) {
+                    ServerCallStreamObserver<?> callObserver = (ServerCallStreamObserver<?>) observer;
+                    if (callObserver.isCancelled()) {
+                        state.listeners.remove(observer);
+                        return;
+                    }
                 }
                 JobProgress snapshot = progress(state);
                 observer.onNext(snapshot);
