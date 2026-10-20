@@ -59,11 +59,11 @@ public class BootstrapGrpcServer {
                 observer.onError(Status.ALREADY_EXISTS.withDescription("Worker " + id + " already registered").asRuntimeException());
                 return;
             }
-            for (WorkerDetails old : workers.values()) {
-                if (old.getPort() == worker.getPort()
-                        && old.getHost().equalsIgnoreCase(worker.getHost())) {
-                    System.out.println("Registration rejected: Worker " + id + " attempted to use already bound address " + worker.getHost() + ":" + worker.getPort());
-                    observer.onError(Status.ALREADY_EXISTS.withDescription("Host and port combination already in use by another worker").asRuntimeException());
+           for (WorkerDetails old : workers.values()) {
+                if (old.getPort() == worker.getPort() && old.getHost().equalsIgnoreCase(worker.getHost())) {
+                    String errorMsg = "Host and port combination already in use";
+                    System.out.println("Registration rejected: Worker " + id + " attempted to use bound address " + worker.getHost() + ":" + worker.getPort());
+                    observer.onError(Status.ALREADY_EXISTS.withDescription(errorMsg).asRuntimeException());
                     return;
                 }
             }
