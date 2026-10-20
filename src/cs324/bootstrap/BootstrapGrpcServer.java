@@ -9,6 +9,10 @@ import io.grpc.stub.StreamObserver;
 import java.util.*;
 import java.util.concurrent.*;
 
+/**
+ * gRPC Bootstrap Server managing worker node registration, heartbeat tracking,
+ * cluster readiness states, and dynamic failure detection.
+ */
 public class BootstrapGrpcServer {
     private static final int PORT = System.getenv("PORT") != null ? Integer.parseInt(System.getenv("PORT")) : 50051;
     private static final long WORKER_TIMEOUT_MS = System.getenv("WORKER_TIMEOUT_MS") != null 
@@ -37,7 +41,9 @@ public class BootstrapGrpcServer {
             }
         }
 
-        public synchronized void checkWorkers() { removeExpired(); }
+        public synchronized void checkWorkers() { 
+            removeExpired(); 
+        }
 
         @Override
         public synchronized void registerWorker(RegisterRequest request,
@@ -59,7 +65,7 @@ public class BootstrapGrpcServer {
                 observer.onError(Status.ALREADY_EXISTS.withDescription("Worker " + id + " already registered").asRuntimeException());
                 return;
             }
-           for (WorkerDetails old : workers.values()) {
+            for (WorkerDetails old : workers.values()) {
                 if (old.getPort() == worker.getPort()
                         && old.getHost().equalsIgnoreCase(worker.getHost())) {
                     observer.onError(Status.ALREADY_EXISTS.withDescription("Port already in use").asRuntimeException());
@@ -68,11 +74,11 @@ public class BootstrapGrpcServer {
             }
             RegisterResponse.Builder reply = RegisterResponse.newBuilder();
             List<WorkerDetails> candidates = new ArrayList<>(workers.values());
-                if (!candidates.isEmpty()) {
-                    WorkerDetails neighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-                    reply.setNeighbour(neighbor);
-                    System.out.println("Assigned worker " + neighbor.getWorkerId() + " as neighbor to worker " + id);
-                }
+            if (!candidates.isEmpty()) {
+                WorkerDetails neighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+                reply.setNeighbour(neighbor);
+                System.out.println("Assigned worker " + neighbor.getWorkerId() + " as neighbor to worker " + id);
+            }
             workers.put(id, worker);
             lastSeen.put(id, System.currentTimeMillis());
             System.out.println("Worker " + id + " registered (" + workers.size() + "/" + requiredWorkers + ")");
@@ -130,7 +136,9 @@ public class BootstrapGrpcServer {
                 observer.onError(Status.NOT_FOUND.withDescription("Worker isn't registered").asRuntimeException());
                 return;
             }
-            if (readyWorkers.add(id)) System.out.println("Worker " + id + " ready (" + readyWorkers.size() + "/" + requiredWorkers + ")");
+            if (readyWorkers.add(id)) {
+                System.out.println("Worker " + id + " ready (" + readyWorkers.size() + "/" + requiredWorkers + ")");
+            }
             if (!clusterStarted && readyWorkers.size() == requiredWorkers) {
                 clusterStarted = true;
                 System.out.println("All workers ready. Worker nodes may now elect a coordinator.");
@@ -154,15 +162,18 @@ public class BootstrapGrpcServer {
             if (!scanner.hasNextLine()) return;
             String input = scanner.nextLine().trim();
             if (input.matches("-[0-9]+")) {
-                System.out.println("Error: Negative integers aren't allowed.");
+                System.out.println("Error: Negative integers are not allowed.");
                 continue;
             }
             if (!input.matches("[0-9]+")) {
-                System.out.println("Error: Enter a whole number (no text or symbols).");
+                System.out.println("Error: Enter a whole number without text or symbols.");
                 continue;
             }
-            try { count = Integer.parseInt(input); }
-            catch (NumberFormatException e) { count = 0; }
+            try { 
+                count = Integer.parseInt(input); 
+            } catch (NumberFormatException e) { 
+                count = 0; 
+            }
             if (count >= 3 && count <= 10) break;
             System.out.println("Error: Number of workers must be between 3 and 10.");
         }
