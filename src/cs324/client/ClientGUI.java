@@ -183,19 +183,29 @@ public class ClientGUI extends JFrame {
         card.add(inputCards);
         card.add(Box.createVerticalStrut(15));
 
-        JPanel buttons = new JPanel(new GridLayout(1, 2, 10, 0));
+        JPanel buttons = new JPanel(new GridLayout(1, 3, 8, 0));
         buttons.setOpaque(false);
         buttons.setAlignmentX(Component.LEFT_ALIGNMENT);
         buttons.setMaximumSize(
                 new Dimension(Integer.MAX_VALUE, 42)
         );
 
-      loadCSVButton = createButton("Load CSV");
+        loadCSVButton = createButton("Load CSV");
         loadCSVButton.setToolTipText("Load numbers or ranges from a local CSV file");
+
+        JButton clearInputButton = createButton("Clear");
+        clearInputButton.setToolTipText("Clear all input text fields");
+        clearInputButton.addActionListener(e -> {
+            if (numbersField != null) numbersField.setText("");
+            if (startField != null) startField.setText("");
+            if (endField != null) endField.setText("");
+        });
+
         submitButton = createButton("Submit Job");
         submitButton.setToolTipText("Send job to distributed network (Shortcut: Ctrl+Enter)");
 
         buttons.add(loadCSVButton);
+        buttons.add(clearInputButton);
         buttons.add(submitButton);
         card.add(buttons);
         jobTypeBox.addActionListener(e -> updateInputPanel());
